@@ -28,7 +28,9 @@ library(table1)
 library(extrafont)
 set.seed(2023)
 
-seer_data <- read_delim("seer_data.txt", delim = "\t", escape_double = FALSE, trim_ws = TRUE)
+
+
+seer_data <- read_delim("SEERdata42623.txt", delim = "\t", escape_double = FALSE, trim_ws = TRUE)
 ```
 <br>
 
@@ -37,22 +39,24 @@ seer_data <- read_delim("seer_data.txt", delim = "\t", escape_double = FALSE, tr
 ```{r}
 # Get only variables we want
 new_data<-seer_data%>%dplyr::select(Sex, `Year of diagnosis`,
-                                `Race and origin recode (NHW, NHB, NHAIAN, NHAPI, Hispanic)`,
-                                `Primary Site`,`Grade (thru 2017)`,
+                                `Race and origin recode (NHW, NHB, NHAIAN, NHAPI, Hispanic) - no total`,
+                                `Primary Site`,`Grade Recode (thru 2017)`,
                                 `Grade Pathological (2018+)`,
                                 `Combined Summary Stage (2004+)`,
                                 `Summary stage 2000 (1998-2017)`,
                                 `SEER cause-specific death classification`,
                                 `Survival months`,
-                                `Age recode with single ages and 100+`,
+                                `Age recode with single ages and 90+`,
                                 `Survival months flag`,
                                 `Vital status recode (study cutoff used)`,
                                 `Grade Clinical (2018+)`,
                                 `Histologic Type ICD-O-3`,
                                 `Site recode ICD-O-3/WHO 2008`)
 
+
 # need to take out 181 appendix, 260, 188, and 189 because location unknown
-new_data <-new_data %>% filter( !`Primary Site` %in% c(260,188,189,181))
+new_data <-new_data %>% filter( !`Primary Site` %in% c(181, 188, 189,260))
+table (new_data$"Primary Site")
 
 # only adenocarcinoma
 new_data <- new_data %>%filter(`Histologic Type ICD-O-3`==8140)
@@ -61,7 +65,7 @@ new_data <- new_data %>%filter(`Histologic Type ICD-O-3`==8140)
 new_data <- new_data %>% mutate(can_see_sigmoid = ifelse( `Primary Site` %in% c(186,187,199,209),1,0))
 
 # make new variable for 3 age groups
-new_data <- new_data %>% mutate(age_numeric = as.numeric(str_extract(`Age recode with single ages and 100+`,"[:digit:]+")))
+new_data <- new_data %>% mutate(age_numeric = as.numeric(str_extract(`Age recode with single ages and 90+`,"[:digit:]+")))
 new_data <- new_data %>% mutate(age_group_final = ifelse(age_numeric <45,'under45', 'over50'))%>%
   mutate(age_group_final = ifelse(age_numeric <50 & age_numeric >= 45,'45-50',age_group_final))
 
@@ -71,25 +75,29 @@ new_data<-new_data%>%mutate(new_stage = ifelse(`Summary stage 2000 (1998-2017)`=
 
 # Filter out unknown stage an in situ
 new_data2 <-new_data %>% filter( !new_stage %in%c("Unknown/unstaged","In situ"))
+table(new_data$"Grade Pathological (2018+)")
 
 # Make nice grade variable
 new_data2 <- new_data2 %>% mutate(final_grade = `Grade Pathological (2018+)`)
-new_data2 <- new_data2 %>% mutate(final_grade = ifelse(`Grade (thru 2017)` %in% "Poorly differentiated; Grade III", "3", final_grade))
-new_data2 <- new_data2 %>% mutate(final_grade = ifelse(`Grade (thru 2017)` %in% "Undifferentiated; anaplastic; Grade IV", "4", final_grade))
-new_data2 <- new_data2 %>% mutate(final_grade = ifelse(`Grade (thru 2017)` %in% "Moderately differentiated; Grade II", "2", final_grade))
-new_data2 <- new_data2 %>% mutate(final_grade = ifelse(`Grade (thru 2017)` %in% "Well differentiated; Grade I", "1", final_grade))
+new_data2 <- new_data2 %>% mutate(final_grade = ifelse(`Grade Recode (thru 2017)` %in% "Poorly differentiated; Grade III", "3", final_grade))
+new_data2 <- new_data2 %>% mutate(final_grade = ifelse(`Grade Recode (thru 2017)` %in% "Undifferentiated; anaplastic; Grade IV", "4", final_grade))
+new_data2 <- new_data2 %>% mutate(final_grade = ifelse(`Grade Recode (thru 2017)` %in% "Moderately differentiated; Grade II", "2", final_grade))
+new_data2 <- new_data2 %>% mutate(final_grade = ifelse(`Grade Recode (thru 2017)` %in% "Well differentiated; Grade I", "1", final_grade))
+
 
 # toss em in an unknown/other
 new_data2 <- new_data2 %>% mutate(final_grade = ifelse(final_grade%in%c("A", "B", "Blank(s)", "L","C", "H", "9","D"),"unk_other",final_grade))
 
 # make smaller year of diagnosis groups
+#042623: awaiting DH response to YOD categories 
 new_data2 <- new_data2 %>% mutate(year_of_diag = case_when(`Year of diagnosis`%in%c('2000', '2001', '2002' ,'2003' ,'2004') ~ "yod1",
                                                             `Year of diagnosis`%in%c('2005','2006', '2007', '2008' ,'2009') ~ "yod2",
                                                             `Year of diagnosis`%in%c('2010', '2011', '2012' ,'2013' ,'2014') ~ "yod3",
-                                                            `Year of diagnosis`%in%c('2015', '2016', '2017' ,'2018' ,'2019') ~ "yod4"))
+                                                            `Year of diagnosis`%in%c('2015', '2016', '2017' ,'2018' ,'2019', '2020') ~ "yod4"))
+
 
 # make cleaner race/eth column name
-new_data2<- new_data2%>%rename(race_eth=`Race and origin recode (NHW, NHB, NHAIAN, NHAPI, Hispanic)`)
+new_data2<- new_data2%>%rename(race_eth=`Race and origin recode (NHW, NHB, NHAIAN, NHAPI, Hispanic) - no total`)
 
 # Survival
 new_data3<-new_data2%>% mutate(cancer_specific_status = ifelse(`SEER cause-specific death classification`=="Dead (attributable to this cancer dx)",1,0 ))
@@ -154,8 +162,19 @@ tbl1$`Site recode ICD-O-3/WHO 2008` <- factor(tbl1$`Site recode ICD-O-3/WHO 2008
                                                                                               "Ascending Colon",
                                                                                               "Cecum"
                                                                                               ))
-#table1(~ `Site recode ICD-O-3/WHO 2008` | new_stage*age_group_final, data = tbl1) this prints a pretty html version, to output in github doc we need to use kable
+table1(~ `Site recode ICD-O-3/WHO 2008` | new_stage*age_group_final, data = tbl1) #this prints a pretty html version, to output in github doc we need to use kable
 knitr::kable(table1(~ `Site recode ICD-O-3/WHO 2008` | new_stage*age_group_final, data = tbl1))
+
+#Characteristics of Patient Population We are Working With (new_data5)
+summary(new_data5$age_group_final)
+new_data5summary <- new_data5 
+summary(new_data5summary$age_numeric)
+new_data5summary %>% 
+  group_by(age_group_final) %>%
+  summarize(Count=n()) %>%
+  mutate(Percent = round((Count/sum(Count)*100))) %>%
+  arrange(desc(Count))
+
 
 ```
 <br>
@@ -247,7 +266,8 @@ Makes KM curves using CSS, checks proportional hazards assumptions
 
 ## KM plots: Can see on sigmoidoscopy 
 ```{r}
-# CAN SEE
+# CAN SEE (Had to change survival months to numeric
+new_data5 <- new_data5 %>% mutate(survival_months = as.numeric(`survival_months`))
 km_cansee<-survfit(Surv(survival_months, cancer_specific_status) ~ can_see_sigmoid, data = new_data5)
 plot(km_cansee,fun="cloglog")
 ggsurvplot(km_cansee,censor=FALSE) # BIGGEST TIME DEPENDANT!!!
@@ -501,7 +521,7 @@ make_plot <- function(plot_dat,fig_title){# takes in plot data generated from ma
     theme(
       plot.title = element_text(size=10),
       axis.title = element_blank(),
-      panel.grid.major.x = element_line(linewidth=0.2,linetype = 3)
+      panel.grid.major.x = element_line() #(linewidth=0.2,linetype = 3)
       )+
     # x axis breaks at 2,5,10, and 15 years
     scale_x_continuous(limits=c(0,240),breaks=c(0,24,60,120,180),labels=c("0","2","5","10","15"))+
@@ -524,6 +544,7 @@ make_plot <- function(plot_dat,fig_title){# takes in plot data generated from ma
 # Local
 u45_local_plot_css <- make_plot_dat(new_data7, "under45", "Localized")
 a_css<-make_plot(u45_local_plot_css,"A: <45 Local")
+
 
 midage_local_plot_css <- make_plot_dat(new_data7, "45-50", "Localized")
 b_css<-make_plot(midage_local_plot_css,"B: 45-49 Local")
